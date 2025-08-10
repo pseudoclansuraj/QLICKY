@@ -28,16 +28,43 @@ const decryptString = (ciphertext: string) => {
 
 export const signInUser = (user: User) => {
   LogSignIn(user);
+  // Store the user UID as the auth token
   localStorage.setItem(AUTH_TOKEN, encryptString(user.uid));
+  // Also store user data if needed
+  localStorage.setItem(USER_DATA, encryptString(JSON.stringify({
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL
+  })));
 };
 
 export const getToken = () => {
   if (token) {
-    return token; //new Promise((resolve)=>resolve(token));
+    return token;
   }
   const x = localStorage.getItem(AUTH_TOKEN) as string;
-  if (x) token = decryptString(x);
+  if (x) {
+    token = decryptString(x);
+  }
   return token;
+};
+
+export const isValidSession = async () => {
+  const storedToken = getToken();
+  if (!storedToken) {
+    return false;
+  }
+  
+  // Check if Firebase auth state is still valid
+  const { auth } = await import("./firebaseHelper");
+  return new Promise((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      unsubscribe();
+      // If there's a stored token but no Firebase user, the session is invalid
+      resolve(!!user && user.uid === storedToken);
+    });
+  });
 };
 
 export const getUserData = () => {
@@ -63,5 +90,10 @@ export const getPromo = () => {
 
 export const signOut = () => {
   token = null;
-  return localStorage.clear();
+  promocode = null;
+  localStorage.removeItem(AUTH_TOKEN);
+  localStorage.removeItem(USER_DATA);
+  localStorage.removeItem(PROMO_CODE);
+  // Clear any other auth-related data
+  return true;
 };

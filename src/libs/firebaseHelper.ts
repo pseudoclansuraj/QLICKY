@@ -127,22 +127,7 @@ export const signInWithGoogle = async (): Promise<any> => {
     const result = await signInWithPopup(auth, provider);
     console.log("signInWithGoogle", result);
     
-    if (result) {
-      // This gives you a Google Access Token. You can use it to access the Google API.
-      //const credential = GoogleAuthProvider.credentialFromResult(result);
-      //const token = credential.accessToken;
-      // The signed-in user info.
-      const user = result.user;
-      console.log("signInWithGoogle", user.emailVerified);
-
-      //await updateUserInfo(user);
-      // await set(ref(database, `/userInfo/${user.uid}`), {
-      //   imgUrl: user.photoURL,
-      //   name: user.displayName,
-      // });
-
-      // ...
-    }
+    return result; // Return the result instead of processing it here
   } catch (error) {
     // Handle Errors here.
     const errorCode = (error as any).code;
@@ -151,7 +136,7 @@ export const signInWithGoogle = async (): Promise<any> => {
     //const email = error.email;
     // The AuthCredential type that was used.
     //const credential = GoogleAuthProvider.credentialFromError(error as any);
-     alert(errorCode + ': ' + errorMessage);
+     throw new Error(errorCode + ': ' + errorMessage);
   }
 };
 
@@ -185,6 +170,15 @@ export const SetUserId=(uid: string)=>{
 export const SetUserProps=(parameters: any)=>{
   setUserProperties(analytics, parameters);
 } 
+
+// Clear any persisted Firebase auth state
+export const clearFirebaseAuth = async () => {
+  try {
+    await auth.signOut();
+  } catch (error) {
+    console.log("Error clearing Firebase auth:", error);
+  }
+};
 
 export default firebase;
 

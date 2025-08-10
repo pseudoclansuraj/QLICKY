@@ -1,38 +1,76 @@
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Routes, Route, Outlet, Navigate } from "react-router-dom";
-import { auth, isMobileDevice } from "./libs/firebaseHelper";
+import { auth, isMobileDevice, clearFirebaseAuth } from "./libs/firebaseHelper";
 import Layout from "./components/layout/Layout";
 import Home from "./pages/Home";
 import Generator from "./pages/Generator";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
 import { QRCodeProvider } from "./contexts/QRCodeContext";
-import { getToken, signInUser } from "./libs/storageHelper";
+import { getToken, signInUser, isValidSession, signOut } from "./libs/storageHelper";
 import { getRedirectResult } from "firebase/auth";
 import Login from "./pages/Login";
 import LoginViaLink from "./pages/LoginViaLink";
 import Signup from "./pages/Signup";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import DashboardLayout from "./components/layout/DashboardLayout";
-import NewQrcode from "./pages/NewQrcode";
 import MyQrcode from "./pages/MyQrcode";
-import Stats from "./pages/Stats";
 import PlanPayments from "./pages/PlanPayments";
 import Settings from "./pages/Settings";
 import ContactUs from "./pages/ContactUs";
+
 
 interface AuthComponentProps {
   allowedRoles: string[];
 }
 
 const PrivateRoute = ({ allowedRoles }: AuthComponentProps) => {
-  if (!getToken()) {
+  const [isValidating, setIsValidating] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  useEffect(() => {
+    const validateSession = async () => {
+      const token = getToken();
+      if (!token) {
+        setIsAuthenticated(false);
+        setIsValidating(false);
+        return;
+      }
+      
+      try {
+        const valid = await isValidSession();
+        if (!valid) {
+          // Clear invalid session
+          signOut();
+          clearFirebaseAuth();
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.log("Session validation error:", error);
+        signOut();
+        clearFirebaseAuth();
+        setIsAuthenticated(false);
+      }
+      
+      setIsValidating(false);
+    };
+    
+    validateSession();
+  }, []);
+  
+  if (isValidating) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
-  // const roleStr = getRole();
+  
+  // Role check
   const userRole = ["user"];
   if (!allowedRoles.some((role) => userRole.includes(role))) {
-    // TODO: Redirect to unauthorized page
     return <Navigate to="/login" />;
   }
 
@@ -41,17 +79,18 @@ const PrivateRoute = ({ allowedRoles }: AuthComponentProps) => {
 
 function AppLaunch() {
   const completeLogin = async () => {
+    // Only try to complete mobile redirects, don't auto-authenticate
     if (isMobileDevice()) {
       try {
         const result = await getRedirectResult(auth);
         if (result) {
-          // This is the signed-in user
+          // This is the signed-in user from a mobile redirect
           const user = result.user;
           signInUser(user);
-          window.location.href = window.location.origin + "/analytics";
+          window.location.href = window.location.origin + "/dashboard/my-qrcode";
         }
       } catch (e) {
-        //alert(e);
+        console.log("Mobile redirect completion error:", e);
       }
     }
   };
@@ -60,7 +99,13 @@ function AppLaunch() {
     try {
       const uid = getToken();
       if (!uid) {
-        completeLogin();
+       
+        if (isMobileDevice()) {
+          completeLogin();
+        } else {
+          
+          clearFirebaseAuth();
+        }
       }
       return () => {};
     } catch (e) {

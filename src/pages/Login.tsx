@@ -5,9 +5,8 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { auth, LoginViaEmail, signInWithGoogle } from "../libs/firebaseHelper";
+import { LoginViaEmail, signInWithGoogle } from "../libs/firebaseHelper";
 import { signInUser } from "../libs/storageHelper";
-import { useEffect } from "react";
 
 const schema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -46,27 +45,20 @@ export default function Login() {
       try {
         console.log("Attempting Google login...");
         
-        await signInWithGoogle();
-        toast.success("Google login successful!");
-        navigate("/dashboard/my-qrcode");
+        const result = await signInWithGoogle();
+        if (result && result.user) {
+          signInUser(result.user);
+          toast.success("Google login successful!");
+          navigate("/dashboard/my-qrcode");
+        }
       } catch (err) {
         toast.error((err as Error).message || "Google login failed.");
       }
     },
   });
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user1) => {
-      if (user1?.uid) {
-        console.log('Login updateUserInfo');
-        signInUser(user1);
-        window.location.href = window.location.origin + "/dashboard/my-qrcode";
-      }
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  // Removed automatic auth state change listener that was auto-logging in users
+  // This was causing automatic redirects without explicit user login action
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
